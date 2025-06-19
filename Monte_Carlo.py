@@ -1,58 +1,57 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import argparse
 
-class MonteCarloPricing:
-    def __init__(self, underlying_spot_price, strike_price, days_to_maturity, risk_free_rate, sigma, number_of_simulations):
-        self.S_0 = underlying_spot_price
-        self.K = strike_price
-        self.T = days_to_maturity / 365
-        self.r = risk_free_rate
+class OptionPricing:
+
+    def __init__(self, s0, E, T, sigma, rf, iterations):
+        self.s0 = s0
+        self.E = E
+        self.T = T
         self.sigma = sigma
-        self.N = number_of_simulations
-        self.num_of_steps = days_to_maturity
-        self.dt = self.T / self.num_of_steps
-        self.simulation_results_S = None
+        self.rf = rf
+        self.iterations = iterations
 
-    def simulate_prices(self):
-        np.random.seed(20)
-        S = np.zeros((self.num_of_steps, self.N))
-        S[0] = self.S_0
-        for t in range(1, self.num_of_steps):
-            Z = np.random.standard_normal(self.N)
-            S[t] = S[t - 1] * np.exp((self.r - 0.5 * self.sigma ** 2) * self.dt + 
-                                     (self.sigma * np.sqrt(self.dt) * Z))
-        self.simulation_results_S = S
 
-    def calculate_call_option_price(self):
-        if self.simulation_results_S is None:
-            self.simulate_prices()
-        return np.exp(-self.r * self.T) * np.mean(np.maximum(self.simulation_results_S[-1] - self.K, 0))
+    def call_option_simulation(self):
+        #Creating a option data
+        option_data = np.zeros([self.iterations, 2])
 
-    def calculate_put_option_price(self):
-        if self.simulation_results_S is None:
-            self.simulate_prices()
-        return np.exp(-self.r * self.T) * np.mean(np.maximum(self.K - self.simulation_results_S[-1], 0))
+        #creating a normally distributed random variable
+        rand = np.random.normal(0, 1, self.iterations)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Monte Carlo European Option Pricing')
-    parser.add_argument('--spot', type=float, required=True, help='Current underlying price')
-    parser.add_argument('--strike', type=float, required=True, help='Option strike price')
-    parser.add_argument('--days', type=int, required=True, help='Days until expiration')
-    parser.add_argument('--rate', type=float, required=True, help='Annual risk-free rate (decimal)')
-    parser.add_argument('--vol', type=float, required=True, help='Annual volatility (decimal)')
-    parser.add_argument('--sims', type=int, default=10000, help='Number of simulations (default: 10000)')
-    
-    args = parser.parse_args()
-    
-    pricer = MonteCarloPricing(
-        underlying_spot_price=args.spot,
-        strike_price=args.strike,
-        days_to_maturity=args.days,
-        risk_free_rate=args.rate,
-        sigma=args.vol,
-        number_of_simulations=args.sims
-    )
-    
-    print(f"Call Price: {pricer.calculate_call_option_price():.4f}")
-    print(f"Put Price: {pricer.calculate_put_option_price():.4f}")
+        #Calculating Stock Prices
+        stock_prices = self.s0*np.exp((self.rf - 0.5 * self.sigma**2) + self.sigma*rand)
+
+        #adding it to option data
+        option_data[:, 1] = stock_prices-self.E
+
+        #Calculating avarage value of max(S-E, 0)
+        avarage = np.sum(np.amax(option_data, axis=1)) / float(self.iterations)
+
+        #we have to return the present value of this average as the price
+        return avarage*np.exp(-self.rf*self.T)
+
+    def put_option_simulation(self):
+        #Creating a option data
+        option_data = np.zeros([self.iterations, 2])
+
+        #creating a normally distributed random variable
+        rand = np.random.normal(0, 1, self.iterations)
+
+        #Calculating Stock Prices
+        stock_prices = self.s0*np.exp((self.rf - 0.5 * self.sigma**2) + self.sigma*rand)
+
+        #adding it to option data
+        option_data[:, 1] = self.E - stock_prices
+
+        #Calculating avarage value of max(S-E, 0)
+        avarage = np.sum(np.amax(option_data, axis=1)) / float(self.iterations)
+
+        #we have to return the present value of this average as the price
+        return avarage*np.exp(-self.rf*self.T)
+
+
+if __name__ == '__main__':
+
+    model = OptionPricing(100, 100, 1, 0.2, 0.05, 100000)
+    print('The price of the call option :%.2f'%model.call_option_simulation())
+    print('The price of the put option :%.2f'%model.put_option_simulation())
